@@ -78,7 +78,7 @@ pipeline {
                     def pomFile = readFile('pom.xml')
                     def pom = new XmlSlurper().parseText(pomFile)
                     
-                    def packaging = pom.packaging?.text() ?: 'jar' // Default to 'jar' if not specified
+                    def packaging = pom.packaging?.text() ?: 'war' // Default to 'jar' if not specified
                     def artifactId = pom.artifactId.text()
                     def groupId = pom.groupId.text()
                     def version = pom.version.text()
