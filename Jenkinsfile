@@ -58,6 +58,18 @@ pipeline {
                
 
           }
+          stage("Quality Gate"){
+             steps {
+                script {
+                    timeout(time: 1, unit: 'HOURS') { // Just in case something goes wrong, pipeline will be killed after a timeout
+                    //We have added timeout so if pipeline will not complete in 1 hour then it will fail . 
+                    def qg = waitForQualityGate() // Reuse taskId previously collected by withSonarQubeEnv , check quality gate status .
+                    if (qg.status != 'OK') {
+                        error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                        }
+                    }
+                }
+            }
         // stage("OWASP Dependency Check"){
         //     steps{
         //         dependencyCheck additionalArguments: '--scan ./ --format HTML ', odcInstallation: 'dependency-check'
