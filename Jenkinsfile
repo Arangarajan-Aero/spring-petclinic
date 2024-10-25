@@ -70,6 +70,7 @@ pipeline {
                
 
           }
+        }
         // stage("OWASP Dependency Check"){
         //     steps{
         //         dependencyCheck additionalArguments: '--scan ./ --format HTML ', odcInstallation: 'dependency-check'
