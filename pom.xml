@@ -10,6 +10,14 @@
     <packaging>war</packaging>
     <description>A Spring Framework application based on JSP, Spring MVC, Spring Data JPA, Hibernate and JDBC</description>
     <url>https://spring-petclinic.github.io/</url>
+    
+    <repositories>
+        <repository>
+            <id>nexus-repo</id>
+            <name>p-app</name>
+            <url>http://3.91.233.169:8081/repository/p-app/</url>
+        </repository>
+    </repositories>
 
     <properties>
 
