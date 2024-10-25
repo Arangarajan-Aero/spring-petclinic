@@ -1,119 +1,116 @@
 pipeline {
     agent { label 'UAT' }
     
-    tools{
-        // jdk 'jdk17'
+    tools {
         maven 'Maven3'
     }
-        environment {
-        SCANNER_HOME=tool 'sonarscanner'
+    
+    environment {
+        SCANNER_HOME = tool 'sonarscanner'
         NEXUS_VERSION = "nexus3"
-        // This can be http or https
         NEXUS_PROTOCOL = "http"
-        // Where your Nexus is running
         NEXUS_URL = "3.91.233.169:8081"
-        // Repository where we will upload the artifact
         NEXUS_REPOSITORY = "p-app"
-        // Jenkins credential id to authenticate to Nexus OSS
         NEXUS_CREDENTIAL_ID = "Nexus"
         ARTIFACT_VERSION = "${BUILD_NUMBER}"
     }
     
-     stages{
-            
-        stage("compile"){
-            steps{
-                sh " mvn compile"
+    stages {
+        stage("compile") {
+            steps {
+                sh "mvn compile"
             }
         }
         
-        stage('test'){
-            steps{
-                sh " mvn test"
+        stage('test') {
+            steps {
+                sh "mvn test"
             }
-         }
+        }
 
-         stage('install'){
-         
-            steps{
-                sh " mvn clean install"
+        stage('install') {
+            steps {
+                sh "mvn clean install"
             }
+        }
 
-         }
-        stage("Sonarqube Analysis "){
-            steps{
+        stage("Sonarqube Analysis") {
+            steps {
                 withSonarQubeEnv('sonar-server') {
-                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Petclinic \
-                    -Dsonar.java.binaries=. \
-                    -Dsonar.projectKey=Petclinic '''
-    
+                    sh '''
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectName=Petclinic \
+                        -Dsonar.java.binaries=. \
+                        -Dsonar.projectKey=Petclinic
+                    '''
                 }
             }
         }
+
         stage("Quality Gate") {
-             steps {
+            steps {
                 script {
-                    timeout(time: 1, unit: 'HOURS') { // Just in case something goes wrong, pipeline will be killed after a timeout
-                    //We have added timeout so if pipeline will not complete in 1 hour then it will fail . 
-                    def qg = waitForQualityGate() // Reuse taskId previously collected by withSonarQubeEnv , check quality gate status .
-                    if (qg.status != 'OK') {
-                        error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                    timeout(time: 1, unit: 'HOURS') {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            error "Pipeline aborted due to quality gate failure: ${qg.status}"
                         }
                     }
                 }
             }
         }
-         stage('Owasp dependency check'){
-                steps {
-             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE')
-              {
-              timeout(time: 60, unit: 'MINUTES') {
-                     dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'dependency-check'
-                     dependencyCheckPublisher pattern: 'dependency-check-report.xml'}
-            }
-            }               
 
-          }
-        stage("publish to nexus") {
+        stage('Owasp Dependency Check') {
             steps {
-                script {
-                    // Read POM xml file using 'readMavenPom' step , this step 'readMavenPom' is included in: https://plugins.jenkins.io/pipeline-utility-steps
-                    pom = readMavenPom file: "pom.xml";
-                    // Find built artifact under target folder
-                    filesByGlob = findFiles(glob: "target/*.${pom.packaging}");
-                    // Print some info from the artifact found
-                    echo "${filesByGlob[0].name} ${filesByGlob[0].path} ${filesByGlob[0].directory} ${filesByGlob[0].length} ${filesByGlob[0].lastModified}"
-                    // Extract the path from the File found
-                    artifactPath = filesByGlob[0].path;
-                    // Assign to a boolean response verifying If the artifact name exists
-                    artifactExists = fileExists artifactPath;
-
-                    if(artifactExists) {
-                        echo "*** File: ${artifactPath}, group: ${pom.groupId}, packaging: ${pom.packaging}, version ${pom.version}";
-
-                        nexusArtifactUploader(
-                            nexusVersion: NEXUS_VERSION,
-                            protocol: NEXUS_PROTOCOL,
-                            nexusUrl: NEXUS_URL,
-                            groupId: pom.groupId,
-                            version: ARTIFACT_VERSION,
-                            repository: NEXUS_REPOSITORY,
-                            credentialsId: NEXUS_CREDENTIAL_ID,
-                            artifacts: [
-                                // Artifact generated such as .jar, .ear and .war files.
-                                [artifactId: pom.artifactId,
-                                classifier: '',
-                                file: artifactPath,
-                                type: pom.packaging]
-                            ]
-                        );
-
-                    } else {
-                        error "*** File: ${artifactPath}, could not be found";
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    timeout(time: 60, unit: 'MINUTES') {
+                        dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'dependency-check'
+                        dependencyCheckPublisher pattern: 'dependency-check-report.xml'
                     }
                 }
             }
         }
-        }
 
+        stage("Publish to Nexus") {
+            steps {
+                script {
+                    // Read POM xml file using XmlSlurper to avoid restricted method calls
+                    def pomFile = readFile('pom.xml')
+                    def pom = new XmlSlurper().parseText(pomFile)
+                    
+                    def packaging = pom.packaging?.text() ?: 'jar' // Default to 'jar' if not specified
+                    def artifactId = pom.artifactId.text()
+                    def groupId = pom.groupId.text()
+                    def version = pom.version.text()
+
+                    // Find built artifact under target folder
+                    def filesByGlob = findFiles(glob: "target/*.${packaging}")
+                    
+                    if (filesByGlob.length == 0) {
+                        error "*** File could not be found"
+                    }
+
+                    def artifactPath = filesByGlob[0].path
+                    echo "*** File: ${artifactPath}, group: ${groupId}, packaging: ${packaging}, version: ${version}"
+
+                    // Upload artifact to Nexus
+                    nexusArtifactUploader(
+                        nexusVersion: NEXUS_VERSION,
+                        protocol: NEXUS_PROTOCOL,
+                        nexusUrl: NEXUS_URL,
+                        groupId: groupId,
+                        version: ARTIFACT_VERSION,
+                        repository: NEXUS_REPOSITORY,
+                        credentialsId: NEXUS_CREDENTIAL_ID,
+                        artifacts: [
+                            [artifactId: artifactId,
+                            classifier: '',
+                            file: artifactPath,
+                            type: packaging]
+                        ]
+                    )
+                }
+            }
+        }
+    }
 }
