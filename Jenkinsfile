@@ -1,5 +1,5 @@
 pipeline {
-    agent { label 'UAT' }
+    agent any
     
     tools {
         maven 'maven'
