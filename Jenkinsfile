@@ -82,47 +82,47 @@ pipeline {
                 }
             }
         }
-        stage("Publish to Nexus") {
-            steps {
-                script {
-                    // Read POM xml file using XmlSlurper to avoid restricted method calls
-                    def pomFile = readFile('pom.xml')
-                    def pom = new XmlSlurper().parseText(pomFile)
+    //     stage("Publish to Nexus") {
+    //         steps {
+    //             script {
+    //                 // Read POM xml file using XmlSlurper to avoid restricted method calls
+    //                 def pomFile = readFile('pom.xml')
+    //                 def pom = new XmlSlurper().parseText(pomFile)
                     
-                    // Extract required details from pom.xml
-                    def artifactId = pom.artifactId.text()
-                    def groupId = pom.groupId.text()
-                    def version = pom.version.text()
-                    def packaging = pom.packaging?.text() ?: 'jar' // Default to 'jar' if not specified
+    //                 // Extract required details from pom.xml
+    //                 def artifactId = pom.artifactId.text()
+    //                 def groupId = pom.groupId.text()
+    //                 def version = pom.version.text()
+    //                 def packaging = pom.packaging?.text() ?: 'jar' // Default to 'jar' if not specified
 
-                    // Find built artifact under target folder
-                    def filesByGlob = findFiles(glob: "target/*.${packaging}")
+    //                 // Find built artifact under target folder
+    //                 def filesByGlob = findFiles(glob: "target/*.${packaging}")
                     
-                    if (filesByGlob.length == 0) {
-                        error "*** File could not be found"
-                    }
+    //                 if (filesByGlob.length == 0) {
+    //                     error "*** File could not be found"
+    //                 }
 
-                    def artifactPath = filesByGlob[0].path
-                    echo "*** File: ${artifactPath}, group: ${groupId}, packaging: ${packaging}, version: ${version}"
+    //                 def artifactPath = filesByGlob[0].path
+    //                 echo "*** File: ${artifactPath}, group: ${groupId}, packaging: ${packaging}, version: ${version}"
 
-                    // Upload artifact to Nexus
-                    nexusArtifactUploader(
-                        nexusVersion: NEXUS_VERSION,
-                        protocol: NEXUS_PROTOCOL,
-                        nexusUrl: NEXUS_URL,
-                        groupId: groupId,
-                        version: ARTIFACT_VERSION,
-                        repository: NEXUS_REPOSITORY,
-                        credentialsId: NEXUS_CREDENTIAL_ID,
-                        artifacts: [
-                            [artifactId: artifactId,
-                            classifier: '',
-                            file: artifactPath,
-                            type: packaging]
-                        ]
-                    )
-                }
-            }
-        }
+    //                 // Upload artifact to Nexus
+    //                 nexusArtifactUploader(
+    //                     nexusVersion: NEXUS_VERSION,
+    //                     protocol: NEXUS_PROTOCOL,
+    //                     nexusUrl: NEXUS_URL,
+    //                     groupId: groupId,
+    //                     version: ARTIFACT_VERSION,
+    //                     repository: NEXUS_REPOSITORY,
+    //                     credentialsId: NEXUS_CREDENTIAL_ID,
+    //                     artifacts: [
+    //                         [artifactId: artifactId,
+    //                         classifier: '',
+    //                         file: artifactPath,
+    //                         type: packaging]
+    //                     ]
+    //                 )
+    //             }
+    //         }
+    //     }
     }
 }
