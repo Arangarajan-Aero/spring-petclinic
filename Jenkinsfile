@@ -2,11 +2,11 @@ pipeline {
     agent any
     
     tools {
-        maven 'maven'
+        maven 'maven' //Jenkins Dashboard > Manage Jenkins > Global Tool Configuration.
     }
     
     environment {
-        SCANNER_HOME = tool 'sonarqube-01'
+        SCANNER_HOME = tool 'sonarqube-01' //Jenkins Dashboard > Manage Jenkins > Global Tool Configuration.
         NEXUS_VERSION = "nexus3"
         NEXUS_PROTOCOL = "http"
         NEXUS_URL = "3.91.233.169:8081"
@@ -36,7 +36,8 @@ pipeline {
 
         stage("Sonarqube Analysis") {
             steps {
-                withSonarQubeEnv('sonar-server') {
+                withSonarQubeEnv('sonar-qube') {
+                    //Manage Jenkins > Configure System.Scroll down to the SonarQube Servers
                     sh '''
                         $SCANNER_HOME/bin/sonar-scanner \
                         -Dsonar.projectName=Petclinic \
