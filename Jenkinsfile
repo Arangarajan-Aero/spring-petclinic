@@ -13,6 +13,7 @@ pipeline {
         NEXUS_REPOSITORY = "p-app"
         NEXUS_CREDENTIAL_ID = "Nexus"
         ARTIFACT_VERSION = "${BUILD_NUMBER}"
+        NVD_API_KEY = credentials('a98d69b1-66d4-4eb8-be72-8861a761b7e4')
     }
     
     stages {
@@ -61,17 +62,26 @@ pipeline {
             }
         }
 
-        stage('Owasp Dependency Check') {
+        // stage('Owasp Dependency Check') {
+        //     steps {
+        //         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+        //             timeout(time: 60, unit: 'MINUTES') {
+        //                 dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'dependency-check'
+        //                 dependencyCheckPublisher pattern: 'dependency-check-report.xml'
+        //             }
+        //         }
+        //     }
+        // }
+    stage('Owasp Dependency Check') {
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                     timeout(time: 60, unit: 'MINUTES') {
-                        dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'dependency-check'
+                        dependencyCheck additionalArguments: "--nvdApiKey ${NVD_API_KEY} --scan ./", odcInstallation: 'dependency-check'
                         dependencyCheckPublisher pattern: 'dependency-check-report.xml'
                     }
                 }
             }
         }
-
         stage("Publish to Nexus") {
             steps {
                 script {
