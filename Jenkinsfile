@@ -13,7 +13,7 @@ pipeline {
         NEXUS_REPOSITORY = "p-app"
         NEXUS_CREDENTIAL_ID = "Nexus"
         ARTIFACT_VERSION = "${BUILD_NUMBER}"
-        NVD_API_KEY = credentials('a98d69b1-66d4-4eb8-be72-8861a761b7e4')
+        NVD_API_KEY = credentials('nvd-api-key')
     }
     
     stages {
