@@ -2,7 +2,7 @@ pipeline {
     agent { label 'UAT' }
     
     tools {
-        maven 'Maven3'
+        maven 'Maven'
     }
     
     environment {
