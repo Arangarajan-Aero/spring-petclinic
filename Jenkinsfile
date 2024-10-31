@@ -76,8 +76,7 @@ pipeline {
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                     timeout(time: 60, unit: 'MINUTES') {
-                        dependencyCheck additionalArguments: "--nvdApiKey ${NVD_API_KEY} --scan ./", odcInstallation: 'dependency-check'
-                        dependencyCheckPublisher pattern: 'dependency-check-report.xml'
+                        sh './mvnw org.owasp:dependency-check-maven:check'
                     }
                 }
             }
