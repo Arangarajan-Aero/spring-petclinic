@@ -72,13 +72,9 @@ pipeline {
         //         }
         //     }
         // }
-    stage('Owasp Dependency Check') {
+  stage('OWASP Dependency Check') {
             steps {
-                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                    timeout(time: 60, unit: 'MINUTES') {
-                        sh './mvnw org.owasp:dependency-check-maven:check'
-                    }
-                }
+                dependencyCheck additionalArguments: '--scan target/', odcInstallation: 'dependency-check'
             }
         }
     //     stage("Publish to Nexus") {
