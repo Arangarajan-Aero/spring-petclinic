@@ -1,0 +1,62 @@
+pipeline {
+    agent any 
+
+    tools {
+        jdk 'java-jdk'
+        maven 'maven'
+    }
+    
+    environment {
+        SCANNER_HOME = tool 'sonarqube-01'
+    }
+    
+    stages {
+        
+        stage("Git Checkout") {
+            steps {
+                git branch: 'main', changelog: false, poll: false, url: 'https://github.com/Arangarajan-Aero/spring-petclinic.git'
+            }
+        }
+        
+        stage("Compile") {
+            steps {
+                sh "mvn clean compile"
+            }
+        }
+        
+        stage("Test Cases") {
+            steps {
+                sh "mvn test"
+            }
+        }
+        
+        stage("Sonarqube Analysis") {
+            steps {
+                withSonarQubeEnv('sonar-qube') {
+                    sh '''$SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Petclinic \
+                        -Dsonar.java.binaries=. \
+                        -Dsonar.projectKey=Petclinic'''
+                }
+            }
+        }
+        
+        stage("OWASP Dependency Check") {
+            steps {
+                dependencyCheck additionalArguments: '--scan ./ --format HTML', odcInstallation: 'dp-check'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        
+        stage("Build") {
+            steps {
+                sh "mvn clean install"
+            }
+        }
+        
+        stage("Tomcat Deploy") {
+            steps {
+                sh "sudo cp target/petclinic.war /opt/apache-tomcat-9.0.65/webapps"
+            }
+        }
+    }
+}
