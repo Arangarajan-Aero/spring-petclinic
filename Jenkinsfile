@@ -74,7 +74,7 @@ pipeline {
         // }
   stage('OWASP Dependency Check') {
             steps {
-                dependencyCheck additionalArguments: '--scan target/', odcInstallation: 'dependency-check'
+                dependencyCheck additionalArguments: '--scan target/', odcInstallation: 'dp-check'
             }
         }
     //     stage("Publish to Nexus") {
