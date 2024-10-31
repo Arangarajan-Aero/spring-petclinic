@@ -2,7 +2,6 @@ pipeline {
     agent any 
 
     tools {
-        
         maven 'maven'
     }
     
@@ -11,7 +10,6 @@ pipeline {
     }
     
     stages {
-        
         stage("Git Checkout") {
             steps {
                 git branch: 'main', changelog: false, poll: false, url: 'https://github.com/Arangarajan-Aero/spring-petclinic.git'
@@ -30,16 +28,26 @@ pipeline {
             }
         }
         
-        stage("Sonarqube Analysis") {
+        stage("SonarQube Analysis") {
             steps {
-                withSonarQubeEnv('sonar-qube') {
-                    // Manage Jenkins > Configure System. Scroll down to the SonarQube Servers
-                    sh '''
-                        $SCANNER_HOME/bin/sonar-scanner \
-                        -Dsonar.projectName=Petclinic \
-                        -Dsonar.java.binaries=. \
-                        -Dsonar.projectKey=Petclinic
-                    '''
+                script {
+                    // Set SonarQube project details
+                    def projectName = 'Petclinic'
+                    def projectKey = 'Petclinic'
+                    def coverageThreshold = '80'
+                    withSonarQubeEnv('sonar-qube') {
+                        sh '''
+                            $SCANNER_HOME/bin/sonar-scanner \
+                            -Dsonar.projectName=Petclinic \
+                            -Dsonar.java.binaries=. \
+                            -Dsonar.projectKey=Petclinic \
+                            -Dsonar.coverage.exclusions=**/*Test.class \
+                            -Dsonar.qualitygate.wait=true \
+                            -Dsonar.security.hotspots.enable=true \
+                            -Dsonar.issue.severity=high \
+                            -Dsonar.coverage.new=${coverageThreshold}
+                        '''
+                    }
                 }
             }
         }
@@ -57,4 +65,21 @@ pipeline {
             }
         }
     } // Close stages
+
 } // Close pipeline
+
+// Move the method definition outside the pipeline definition but keep it in a script block.
+def waitForQualityGate() {
+    timeout(time: 1, unit: 'HOURS') {
+        def result
+        retry(5) {
+            result = sh(script: 'curl -s -u squ_3db2d62c3747e72c00b428f3822629707d948708: http://13.234.48.53:9000/api/qualitygates/project_status?projectKey=Petclinic', returnStdout: true)
+
+            def json = readJSON(text: result)
+            if (json.projectStatus.status != 'OK') {
+                error "SonarQube Quality Gate failed with status: ${json.projectStatus.status}"
+            }
+            return json.projectStatus
+        }
+    }
+}
