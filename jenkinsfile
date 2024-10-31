@@ -2,7 +2,7 @@ pipeline {
     agent any 
 
     tools {
-        jdk 'java-jdk'
+        
         maven 'maven'
     }
     
@@ -33,30 +33,28 @@ pipeline {
         stage("Sonarqube Analysis") {
             steps {
                 withSonarQubeEnv('sonar-qube') {
-                    sh '''$SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Petclinic \
+                    // Manage Jenkins > Configure System. Scroll down to the SonarQube Servers
+                    sh '''
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectName=Petclinic \
                         -Dsonar.java.binaries=. \
-                        -Dsonar.projectKey=Petclinic'''
+                        -Dsonar.projectKey=Petclinic
+                    '''
                 }
             }
         }
-        
-        stage("OWASP Dependency Check") {
+
+        stage("Quality Gate") {
             steps {
-                dependencyCheck additionalArguments: '--scan ./ --format HTML', odcInstallation: 'dp-check'
-                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                script {
+                    timeout(time: 60, unit: 'MINUTES') {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                        }
+                    }
+                }
             }
         }
-        
-        stage("Build") {
-            steps {
-                sh "mvn clean install"
-            }
-        }
-        
-        stage("Tomcat Deploy") {
-            steps {
-                sh "sudo cp target/petclinic.war /opt/apache-tomcat-9.0.65/webapps"
-            }
-        }
-    }
-}
+    } // Close stages
+} // Close pipeline
