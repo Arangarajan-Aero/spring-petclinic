@@ -7,7 +7,9 @@ pipeline {
     
     environment {
         SCANNER_HOME = tool 'sonarqube-01'
-        SONAR_TOKEN = credentials('sonar-qube')  // Use Jenkins credentials for the SonarQube token
+        SONAR_TOKEN = credentials('sonar-qube')
+        DOCKER_IMAGE = 'aero1602/maven-application'
+        DOCKER_TAG = "${env.BUILD_NUMBER}-${env.GIT_COMMIT}"
     }
     
     stages {
@@ -51,24 +53,15 @@ pipeline {
                 }
             }
         }
+        
         stage("OWASP Dependency Check") {
             steps {
                 dependencyCheck additionalArguments: '--scan ./ --format ALL', 
                                 odcInstallation: 'dp-check', 
-                                stopBuild: true  // Stops the build if vulnerabilities exceed the CVSS threshold
+                                stopBuild: true  
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
             }
         }
-
-        
-        // stage("OWASP Dependency Check") {
-        //     steps {
-        //         dependencyCheck additionalArguments: '--scan ./ --format HTML,XML', 
-        //                         odcInstallation: 'dp-check', 
-        //                         stopBuild: true  // Stops the build if vulnerabilities exceed the CVSS threshold
-        //         dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-        //     }
-        // }
 
         stage("Quality Gate") {
             steps {
@@ -82,20 +75,76 @@ pipeline {
                 }
             }
         }
-        stage("Build"){
-            steps{
-                sh " mvn clean install"
+
+        stage("Build") {
+            steps {
+                sh "mvn clean install"
             }
         }
-    } // Close stages
-} // Close pipeline
+        stage("Dockerfile Linting with Hadolint") {
+    steps {
+        script {
+            if (fileExists('Dockerfile')) {
+                echo 'Dockerfile found, running Hadolint...'
+                sh """
+                    docker run --rm -v \$(pwd):/workspace hadolint/hadolint hadolint /workspace/Dockerfile > hadolint_report.txt || echo 'Hadolint encountered issues, see hadolint_report.txt.'
+                """
+                archiveArtifacts artifacts: 'hadolint_report.txt', allowEmptyArchive: true
+            } else {
+                echo 'No Dockerfile found. Skipping Hadolint linting stage.'
+            }
+        }
+    }
+}
+
+
+
+        stage("Build Docker Image") {
+            steps {
+                script {
+                    sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
+                    echo "Docker image built successfully"
+                }
+            }
+        }
+
+        stage("Docker Image Vulnerability Scanning with Trivy") {
+            steps {
+                // Scan the Docker image with Trivy and generate a PDF report
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    sh """
+                        trivy image --no-progress --exit-code 1 --severity HIGH,CRITICAL --format json -o trivy_report.json ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        trivy image --format pdf -o trivy_report.pdf ${DOCKER_IMAGE}:${DOCKER_TAG}
+                    """
+                    echo "Trivy scan completed. Reports generated."
+                    archiveArtifacts artifacts: 'trivy_report.pdf', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Login to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'Docker-hub-credentials', passwordVariable: 'PASSWORD', usernameVariable: 'USERNAME')]) {
+                    sh 'docker login -u ${USERNAME} -p ${PASSWORD}'
+                }
+                echo 'Login successful'
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                sh "docker push ${DOCKER_IMAGE}:${DOCKER_TAG}"
+                echo "Docker image pushed successfully"
+            }
+        }
+    } 
+} 
 
 def waitForQualityGate() {
     timeout(time: 1, unit: 'HOURS') {
         def result
         retry(5) {
             result = sh(script: "curl -s -u ${env.SONAR_TOKEN}: http://3.6.37.222:9000/api/qualitygates/project_status?projectKey=Petclinic", returnStdout: true)
-
             def json = readJSON(text: result)
             if (json.projectStatus.status != 'OK') {
                 error "SonarQube Quality Gate failed with status: ${json.projectStatus.status}"
