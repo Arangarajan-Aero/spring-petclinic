@@ -2,16 +2,17 @@ pipeline {
     agent any 
 
     tools {
-        maven 'maven'
+        maven 'maven' // Define the Maven tool
     }
     
     environment {
-        SCANNER_HOME = tool 'sonarqube-01'
-        SONAR_TOKEN = credentials('sonar-qube')
-        DOCKER_IMAGE = 'aero1602/maven-application'
-        DOCKER_TAG = "${env.BUILD_NUMBER}-${env.GIT_COMMIT}"
-        AWS_REGION = 'ap-south-1'  // e.g., 'us-east-1'
-        ECR_REPOSITORY = '905418475780.dkr.ecr.ap-south-1.amazonaws.com/devsecops/maven'
+        SCANNER_HOME = tool 'sonarqube-01' // Define SonarQube scanner tool
+        SONAR_TOKEN = credentials('sonar-qube') // Token for SonarQube authentication
+        DOCKER_IMAGE = 'aero1602/maven-application' // Docker image name
+        DOCKER_TAG = "${env.BUILD_NUMBER}-${env.GIT_COMMIT}" // Docker image tag
+        AWS_REGION = 'ap-south-1' // AWS region for ECR
+        ECR_REPOSITORY = '905418475780.dkr.ecr.ap-south-1.amazonaws.com/devsecops/maven' // ECR repository URL
+        EMAIL_RECIPIENTS = 'arangarajan16.002@gmail.com' // Define your email recipients here
     }
     
     stages {
@@ -23,13 +24,13 @@ pipeline {
         
         stage("Compile") {
             steps {
-                sh "mvn clean compile"
+                sh "mvn clean compile" // Compile the application
             }
         }
         
         stage("Test Cases") {
             steps {
-                sh "mvn test"
+                sh "mvn test" // Run tests
             }
         }
         
@@ -80,7 +81,7 @@ pipeline {
 
         stage("Build") {
             steps {
-                sh "mvn clean install"
+                sh "mvn clean install" // Build the application
             }
         }
         
@@ -92,7 +93,7 @@ pipeline {
                         sh """
                             docker run --rm -v \$(pwd):/workspace hadolint/hadolint hadolint /workspace/Dockerfile > hadolint_report.txt || echo 'Hadolint encountered issues, see hadolint_report.txt.'
                         """
-                        archiveArtifacts artifacts: 'hadolint_report.txt', allowEmptyArchive: true
+                        archiveArtifacts artifacts: 'hadolint_report.txt', allowEmptyArchive: true // Archive Hadolint report
                     } else {
                         echo 'No Dockerfile found. Skipping Hadolint linting stage.'
                     }
@@ -103,7 +104,7 @@ pipeline {
         stage("Build Docker Image") {
             steps {
                 script {
-                    sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
+                    sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ." // Build Docker image
                     echo "Docker image built successfully"
                 }
             }
@@ -111,14 +112,13 @@ pipeline {
 
         stage("Docker Image Vulnerability Scanning with Trivy") {
             steps {
-                // Scan the Docker image with Trivy and generate a PDF report
                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                     sh """
                         trivy image --no-progress --exit-code 1 --severity HIGH,CRITICAL --format json -o trivy_report.json ${DOCKER_IMAGE}:${DOCKER_TAG}
                         trivy image --format pdf -o trivy_report.pdf ${DOCKER_IMAGE}:${DOCKER_TAG}
                     """
                     echo "Trivy scan completed. Reports generated."
-                    archiveArtifacts artifacts: 'trivy_report.pdf', allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'trivy_report.pdf', allowEmptyArchive: true // Archive Trivy report
                 }
             }
         }
@@ -141,7 +141,36 @@ pipeline {
             }
         }
     } 
-} 
+
+    post {
+        always {
+            script {
+                // Define email content
+                def subject = "Build #${env.BUILD_NUMBER} - ${currentBuild.currentResult}"
+                def body = """
+                <p>Build Status: ${currentBuild.currentResult}</p>
+                <p>Commit ID: ${env.GIT_COMMIT}</p>
+                <p>Build Link: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+                <p>Triggered By: ${env.BUILD_USER}</p>
+                <p>Reports:</p>
+                <ul>
+                    <li><a href="${env.BUILD_URL}artifact/hadolint_report.txt">Hadolint Report</a></li>
+                    <li><a href="${env.BUILD_URL}artifact/trivy_report.pdf">Trivy Report</a></li>
+                    <li><a href="${env.BUILD_URL}artifact/dependency-check-report.xml">OWASP Dependency Check Report</a></li>
+                </ul>
+                """
+
+                // Send email notification
+                emailext(
+                    to: EMAIL_RECIPIENTS,
+                    subject: subject,
+                    body: body,
+                    mimeType: 'text/html'
+                )
+            }
+        }
+    }
+}
 
 def waitForQualityGate() {
     timeout(time: 1, unit: 'HOURS') {
