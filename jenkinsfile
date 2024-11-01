@@ -7,6 +7,7 @@ pipeline {
     
     environment {
         SCANNER_HOME = tool 'sonarqube-01'
+        SONAR_TOKEN = credentials('sonar-qube')  // Use Jenkins credentials for the SonarQube token
     }
     
     stages {
@@ -31,26 +32,43 @@ pipeline {
         stage("SonarQube Analysis") {
             steps {
                 script {
-                    // Set SonarQube project details
                     def projectName = 'Petclinic'
                     def projectKey = 'Petclinic'
                     def coverageThreshold = '80'
                     withSonarQubeEnv('sonar-qube') {
-                        sh '''
+                        sh """
                             $SCANNER_HOME/bin/sonar-scanner \
-                            -Dsonar.projectName=Petclinic \
+                            -Dsonar.projectName=${projectName} \
                             -Dsonar.java.binaries=. \
-                            -Dsonar.projectKey=Petclinic \
+                            -Dsonar.projectKey=${projectKey} \
                             -Dsonar.coverage.exclusions=**/*Test.class \
                             -Dsonar.qualitygate.wait=true \
                             -Dsonar.security.hotspots.enable=true \
                             -Dsonar.issue.severity=high \
                             -Dsonar.coverage.new=${coverageThreshold}
-                        '''
+                        """
                     }
                 }
             }
         }
+        stage("OWASP Dependency Check") {
+            steps {
+                dependencyCheck additionalArguments: '--scan ./ --format ALL', 
+                                odcInstallation: 'dp-check', 
+                                stopBuild: true  // Stops the build if vulnerabilities exceed the CVSS threshold
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+
+        
+        // stage("OWASP Dependency Check") {
+        //     steps {
+        //         dependencyCheck additionalArguments: '--scan ./ --format HTML,XML', 
+        //                         odcInstallation: 'dp-check', 
+        //                         stopBuild: true  // Stops the build if vulnerabilities exceed the CVSS threshold
+        //         dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+        //     }
+        // }
 
         stage("Quality Gate") {
             steps {
@@ -65,15 +83,13 @@ pipeline {
             }
         }
     } // Close stages
-
 } // Close pipeline
 
-// Move the method definition outside the pipeline definition but keep it in a script block.
 def waitForQualityGate() {
     timeout(time: 1, unit: 'HOURS') {
         def result
         retry(5) {
-            result = sh(script: 'curl -s -u squ_3db2d62c3747e72c00b428f3822629707d948708: http://13.234.48.53:9000/api/qualitygates/project_status?projectKey=Petclinic', returnStdout: true)
+            result = sh(script: "curl -s -u ${env.SONAR_TOKEN}: http://65.0.3.90:9000/api/qualitygates/project_status?projectKey=Petclinic", returnStdout: true)
 
             def json = readJSON(text: result)
             if (json.projectStatus.status != 'OK') {
