@@ -82,6 +82,11 @@ pipeline {
                 }
             }
         }
+        stage("Build"){
+            steps{
+                sh " mvn clean install"
+            }
+        }
     } // Close stages
 } // Close pipeline
 
@@ -89,7 +94,7 @@ def waitForQualityGate() {
     timeout(time: 1, unit: 'HOURS') {
         def result
         retry(5) {
-            result = sh(script: "curl -s -u ${env.SONAR_TOKEN}: http://65.0.3.90:9000/api/qualitygates/project_status?projectKey=Petclinic", returnStdout: true)
+            result = sh(script: "curl -s -u ${env.SONAR_TOKEN}: http://3.6.37.222:9000/api/qualitygates/project_status?projectKey=Petclinic", returnStdout: true)
 
             def json = readJSON(text: result)
             if (json.projectStatus.status != 'OK') {
