@@ -13,6 +13,8 @@ pipeline {
         AWS_REGION = 'ap-south-1' // AWS region for ECR
         ECR_REPOSITORY = '905418475780.dkr.ecr.ap-south-1.amazonaws.com/devsecops/maven' // ECR repository URL
         EMAIL_RECIPIENTS = 'arangarajan16.002@gmail.com' // Define your email recipients here
+        SLACK_CHANNEL = '#alert' // Define your Slack channel here
+        SLACK_CREDENTIALS_ID = 'slack-webhook' // Jenkins credentials ID for Slack
     }
     
     stages {
@@ -167,6 +169,14 @@ pipeline {
                     body: body,
                     mimeType: 'text/html'
                 )
+
+                // Send Slack notification
+                slackSend(channel: SLACK_CHANNEL, 
+                          message: "Build *#${env.BUILD_NUMBER}* - ${currentBuild.currentResult} \n" +
+                                   "Commit ID: `${env.GIT_COMMIT}` \n" +
+                                   "Build Link: <${env.BUILD_URL}|Click here> \n" +
+                                   "Triggered By: ${env.BUILD_USER}", 
+                          credentialsId: SLACK_CREDENTIALS_ID)
             }
         }
     }
